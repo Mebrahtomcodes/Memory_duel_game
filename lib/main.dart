@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'screens/game_screen.dart';
+import 'screens/history_screen.dart';
 import 'services/game_service.dart';
 
 void main() {
   runApp(const MyApp());
 }
 
-// Helper to launch URLs
 void _launchURL(String urlString) async {
   final Uri url = Uri.parse(urlString);
   if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
@@ -23,7 +23,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Memory Duel',
-      theme: ThemeData.dark(),
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF0F0F0F),
+        primaryColor: Colors.blue,
+      ),
       home: const HomeScreen(),
     );
   }
@@ -37,22 +40,66 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final TextEditingController playerA = TextEditingController();
-  final TextEditingController playerB = TextEditingController();
   final GameService _gameService = GameService();
-  List leaderboard = [];
 
-  @override
-  void initState() {
-    super.initState();
-    fetchLeaderboard();
+  void _startSinglePlayer() {
+    final TextEditingController nameController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => _buildNameDialog(
+        title: "Single Player",
+        controllers: [nameController],
+        labels: ["Your Name"],
+        onStart: () {
+          if (nameController.text.isNotEmpty) {
+            final game = _gameService.createGame([nameController.text, "Computer"], isVsComputer: true);
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (_) => GameScreen(gameId: game.gameId)));
+          }
+        },
+      ),
+    );
   }
 
-  Future<void> fetchLeaderboard() async {
-    final data = await _gameService.getLeaderboard();
-    setState(() {
-      leaderboard = data;
-    });
+  void _startTwoPlayer() {
+    final TextEditingController p1Controller = TextEditingController();
+    final TextEditingController p2Controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => _buildNameDialog(
+        title: "Two Player Duel",
+        controllers: [p1Controller, p2Controller],
+        labels: ["Player 1 Name", "Player 2 Name"],
+        onStart: () {
+          if (p1Controller.text.isNotEmpty && p2Controller.text.isNotEmpty) {
+            final game = _gameService.createGame([p1Controller.text, p2Controller.text]);
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (_) => GameScreen(gameId: game.gameId)));
+          }
+        },
+      ),
+    );
+  }
+
+  void _startThreePlayer() {
+    final TextEditingController p1Controller = TextEditingController();
+    final TextEditingController p2Controller = TextEditingController();
+    final TextEditingController p3Controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => _buildNameDialog(
+        title: "Three Player Duel",
+        controllers: [p1Controller, p2Controller, p3Controller],
+        labels: ["Player 1", "Player 2", "Player 3"],
+        onStart: () {
+          if (p1Controller.text.isNotEmpty && p2Controller.text.isNotEmpty && p3Controller.text.isNotEmpty) {
+            final game = _gameService.createGame([p1Controller.text, p2Controller.text, p3Controller.text]);
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (_) => GameScreen(gameId: game.gameId)));
+          }
+        },
+      ),
+    );
   }
 
   void _showRules() {
@@ -104,210 +151,275 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void createGame() {
-    if (playerA.text.isEmpty || playerB.text.isEmpty) return;
-    final game = _gameService.createGame(playerA.text, playerB.text);
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => GameScreen(gameId: game.gameId)),
-    ).then((_) => fetchLeaderboard());
+  Widget _buildNameDialog({
+    required String title,
+    required List<TextEditingController> controllers,
+    required List<String> labels,
+    required VoidCallback onStart,
+  }) {
+    return AlertDialog(
+      backgroundColor: Colors.grey[900],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(title, style: const TextStyle(color: Colors.white)),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(controllers.length, (i) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: TextField(
+              controller: controllers[i],
+              decoration: InputDecoration(
+                labelText: labels[i],
+                filled: true,
+                fillColor: Colors.white10,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          )),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCEL")),
+        ElevatedButton(
+          onPressed: onStart,
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+          child: const Text("START"),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black87,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.info_outline, color: Colors.white54),
-            onPressed: () {
-              showAboutDialog(
-                context: context,
-                applicationName: "Memory Duel",
-                applicationVersion: "1.0.0",
-                applicationIcon: const Icon(Icons.memory, size: 40, color: Colors.blue),
-                applicationLegalese: "© 2026 Mebre Lala. All rights reserved.",
-                children: [
-                  const SizedBox(height: 20),
-                  const Text(
-                    "👤 About Developer",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                  const Divider(color: Colors.white24),
-                  const SizedBox(height: 10),
-                  const Text(
-                    "👤 Mebre Lala",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                  InkWell(
-                    onTap: () => _launchURL("mailto:mebreg4@gmail.com"),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        children: [
-                          Icon(Icons.email_outlined, size: 16, color: Colors.blue),
-                          SizedBox(width: 8),
-                          Text("mebreg4@gmail.com", style: TextStyle(color: Colors.blue)),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    "💼 Mobile & Flutter Developer | Spring Boot Backend Developer",
-                    style: TextStyle(fontSize: 14, color: Colors.white70),
-                  ),
-                  const Text(
-                    "🚀 Open for freelance work",
-                    style: TextStyle(fontSize: 14, color: Colors.greenAccent),
-                  ),
-                  const SizedBox(height: 15),
-                  InkWell(
-                    onTap: () => _launchURL("https://github.com/Mebrahtomcodes"),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        children: [
-                          Icon(Icons.link, size: 16, color: Colors.blue),
-                          SizedBox(width: 8),
-                          Text("GitHub: Mebrahtomcodes", style: TextStyle(color: Colors.blue)),
-                        ],
-                      ),
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () => _launchURL("https://www.linkedin.com/in/mebrahtom-guesh-168b2b389"),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        children: [
-                          Icon(Icons.link, size: 16, color: Colors.blue),
-                          SizedBox(width: 8),
-                          Text("LinkedIn Profile", style: TextStyle(color: Colors.blue)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
+            onPressed: _showAbout,
           ),
         ],
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
+      body: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1A1A2E), Color(0xFF16213E), Color(0xFF0F0F0F)],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.emoji_events, size: 80, color: Colors.yellow),
-                const SizedBox(height: 10),
+                const SizedBox(height: 20),
+                const Icon(Icons.emoji_events, size: 100, color: Colors.yellow),
+                const SizedBox(height: 20),
                 const Text(
-                  "Memory Duel",
-                  style: TextStyle(fontSize: 32, color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 30),
-                TextField(
-                  controller: playerA,
-                  decoration: InputDecoration(
-                    labelText: "Player 1 Name",
-                    filled: true,
-                    fillColor: Colors.white10,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+                  "MEMORY DUEL",
+                  style: TextStyle(
+                    fontSize: 40,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 4,
+                    color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 15),
-                TextField(
-                  controller: playerB,
-                  decoration: InputDecoration(
-                    labelText: "Player 2 Name",
-                    filled: true,
-                    fillColor: Colors.white10,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
-                  ),
-                ),
-                const SizedBox(height: 25),
-                Row(
-                  children: [
-                    Expanded(
-                      child: SizedBox(
-                        height: 55,
-                        child: OutlinedButton.icon(
-                          onPressed: _showRules,
-                          icon: const Icon(Icons.help_outline, color: Colors.orange, size: 18),
-                          label: const Text(
-                            "HOW TO PLAY",
-                            style: TextStyle(color: Colors.white70, fontSize: 12),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.white24),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      flex: 2,
-                      child: SizedBox(
-                        height: 55,
-                        child: ElevatedButton(
-                          onPressed: createGame,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                          ),
-                          child: const Text("START DUEL", style: TextStyle(fontSize: 18, color: Colors.white)),
-                        ),
-                      ),
-                    ),
-                  ],
+                const Text(
+                  "Test your focus. Outsmart your rivals.",
+                  style: TextStyle(color: Colors.white54, fontSize: 16),
                 ),
                 const SizedBox(height: 40),
-                const Text(
-                  "🏆 TOP 3 FASTEST WINNERS",
-                  style: TextStyle(color: Colors.yellow, fontWeight: FontWeight.bold, fontSize: 16),
+                _MenuButton(
+                  icon: Icons.person,
+                  label: "SINGLE PLAYER",
+                  color: Colors.blueAccent,
+                  onTap: _startSinglePlayer,
                 ),
-                const SizedBox(height: 10),
-                if (leaderboard.isEmpty)
-                  const Text("No records yet", style: TextStyle(color: Colors.white54))
-                else
-                  ...leaderboard.map((entry) => Container(
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(10)),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text("${entry['playerName']}", style: const TextStyle(color: Colors.white, fontSize: 16)),
-                        Text("${entry['timeInSeconds']}s", style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  )),
-                const SizedBox(height: 60),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.code, color: Colors.white24, size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      "Developed by Mebre Lala".toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white24,
-                        fontSize: 12,
-                        letterSpacing: 2,
-                        fontWeight: FontWeight.w300,
-                      ),
-                    ),
-                  ],
+                _MenuButton(
+                  icon: Icons.people,
+                  label: "TWO PLAYER",
+                  color: Colors.greenAccent,
+                  onTap: _startTwoPlayer,
                 ),
-                const SizedBox(height: 20),
+                _MenuButton(
+                  icon: Icons.groups,
+                  label: "THREE PLAYER",
+                  color: Colors.orangeAccent,
+                  onTap: _startThreePlayer,
+                ),
+                _MenuButton(
+                  icon: Icons.history,
+                  label: "HISTORY",
+                  color: Colors.purpleAccent,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryScreen())),
+                ),
+                _MenuButton(
+                  icon: Icons.help_outline,
+                  label: "HOW TO PLAY",
+                  color: Colors.yellowAccent,
+                  onTap: _showRules,
+                ),
+                const SizedBox(height: 40),
+                _buildDeveloperInfo(),
+                const SizedBox(height: 40),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeveloperInfo() {
+    return InkWell(
+      onTap: () => _showAbout(),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.code, color: Colors.white24, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                "Developed by Mebre Lala".toUpperCase(),
+                style: const TextStyle(
+                  color: Colors.white24,
+                  fontSize: 10,
+                  letterSpacing: 2,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAbout() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("👤 About / Developer", style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "👤 Mebre Lala",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(height: 10),
+              _contactItem(
+                icon: Icons.email_outlined,
+                label: "mebreg4@gmail.com",
+                onTap: () => _launchURL("mailto:mebreg4@gmail.com"),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                "💼 Mobile & Flutter Developer | Spring Boot Backend Developer",
+                style: TextStyle(fontSize: 14, color: Colors.white70),
+              ),
+              const Text(
+                "🚀 Open for freelance work",
+                style: TextStyle(fontSize: 14, color: Colors.greenAccent),
+              ),
+              const SizedBox(height: 20),
+              _contactItem(
+                icon: Icons.link,
+                label: "GitHub: Mebrahtomcodes",
+                onTap: () => _launchURL("https://github.com/Mebrahtomcodes"),
+              ),
+              const SizedBox(height: 10),
+              _contactItem(
+                icon: Icons.link,
+                label: "LinkedIn Profile",
+                onTap: () => _launchURL("https://www.linkedin.com/in/mebrahtom-guesh-168b2b389"),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("CLOSE", style: TextStyle(color: Colors.blue)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _contactItem({required IconData icon, required String label, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: Colors.blue),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _MenuButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(15),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: color.withOpacity(0.3), width: 1),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 28),
+              const SizedBox(width: 20),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const Spacer(),
+              const Icon(Icons.chevron_right, color: Colors.white24),
+            ],
           ),
         ),
       ),
